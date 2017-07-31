@@ -1,17 +1,25 @@
+
 from cffi import FFI
 from pathlib import Path
 
-sdk_dir = (Path(__file__).parent / '..' / '..' / 'Excel2013XLLSDK' ).resolve()
+sdk_dir = (Path(__file__).parent / '..'  / 'ExcelXllSdk' ).resolve()
 
 
 ffi = FFI()
 
 # note need cffi 1.5.1 in order to support __stdcall
-ffi.embedding_api('''
+ffi.embedding_api(r'''
     extern int __stdcall xlAutoOpen(void);
     extern int __stdcall xlAutoClose(void);
 '''
 )
+
+# should we define our entry points here explicitly
+ffi.embedding_init_code('''import test_xll_embed''')
+
+# need to set PYTHONHOME at the moment, or this won't embed properly.
+# also need to setu PYTHONPATH if running from source, but that's typical.
+# cal python_setHome thing to sort it out -> need to infer from the python.dll location?
 
 # office 2016 seems to break AttachConsole/AllocConsole. Nasty
 # works in office 2013.
@@ -23,7 +31,7 @@ ffi.embedding_api('''
 # VIRTUAL_ENV can specify where, if not we use the
 
 ffi.set_source('test_xll',
-'''
+r'''
 #include <WINDOWS.H>
 #include <XLCALL.H>
 
@@ -131,31 +139,6 @@ BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReason)
      extra_link_args = ['/DEBUG']
 )
 
-ffi.embedding_init_code('''
-    from test_xll import ffi
-
-    from xlcall._xlcall import ffi as xlcall
-    xlcall = xlcall.dlopen('XLCALL32')
-
-    # we should look for the module we want to expose, and def_extern all of them here?
-    # then the xlAutoOpen implementation needs to loop over all the def_externs..
-
-    @ffi.def_extern(error=0)
-    def xlAutoOpen():
-        import os
-        for key, value in os.environ.items():
-            print('{key:<32s} {value}'.format(key=key, value=value))
-        import sys
-        print(sys.path)
-        print(sys.prefix)
-        print(sys.executable)
-        print('XlCallVer: {:d}'.format(xlcall.XLCallVer()))
-        return 1
-
-    @ffi.def_extern(error=0)
-    def xlAutoClose():
-        return 1
-''')
 
 
 if __name__ == '__main__':

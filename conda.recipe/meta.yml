@@ -1,0 +1,15 @@
+package:
+  name: cffi-xll
+  version: 0
+
+
+requirements:
+  build:
+    - jinja2
+    - cffi
+    - inflection
+
+  run:
+    - cffi
+
+

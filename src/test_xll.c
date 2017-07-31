@@ -1,4 +1,21 @@
+#define _CFFI_USE_EMBEDDING
 #define _CFFI_
+
+/* We try to define Py_LIMITED_API before including Python.h.
+
+   Mess: we can only define it if Py_DEBUG, Py_TRACE_REFS and
+   Py_REF_DEBUG are not defined.  This is a best-effort approximation:
+   we can learn about Py_DEBUG from pyconfig.h, but it is unclear if
+   the same works for the other two macros.  Py_DEBUG implies them,
+   but not the other way around.
+*/
+#ifndef _CFFI_USE_EMBEDDING
+#  include <pyconfig.h>
+#  if !defined(Py_DEBUG) && !defined(Py_TRACE_REFS) && !defined(Py_REF_DEBUG)
+#    define Py_LIMITED_API
+#  endif
+#endif
+
 #include <Python.h>
 #ifdef __cplusplus
 extern "C" {
@@ -218,7 +235,9 @@ static int search_in_struct_unions(const struct _cffi_type_context_s *ctx,
 #  include <stdint.h>
 # endif
 # if _MSC_VER < 1800   /* MSVC < 2013 */
-   typedef unsigned char _Bool;
+#  ifndef __cplusplus
+    typedef unsigned char _Bool;
+#  endif
 # endif
 #else
 # include <stdint.h>
@@ -231,6 +250,12 @@ static int search_in_struct_unions(const struct _cffi_type_context_s *ctx,
 # define _CFFI_UNUSED_FN  __attribute__((unused))
 #else
 # define _CFFI_UNUSED_FN  /* nothing */
+#endif
+
+#ifdef __cplusplus
+# ifndef _Bool
+   typedef bool _Bool;   /* semi-hackish: C++ has no _Bool; bool is builtin */
+# endif
 #endif
 
 /**********  CPython-specific section  **********/
@@ -293,9 +318,9 @@ static int search_in_struct_unions(const struct _cffi_type_context_s *ctx,
 #define _cffi_to_c_char                                                  \
                  ((int(*)(PyObject *))_cffi_exports[9])
 #define _cffi_from_c_pointer                                             \
-    ((PyObject *(*)(char *, CTypeDescrObject *))_cffi_exports[10])
+    ((PyObject *(*)(char *, struct _cffi_ctypedescr *))_cffi_exports[10])
 #define _cffi_to_c_pointer                                               \
-    ((char *(*)(PyObject *, CTypeDescrObject *))_cffi_exports[11])
+    ((char *(*)(PyObject *, struct _cffi_ctypedescr *))_cffi_exports[11])
 #define _cffi_get_struct_layout                                          \
     not used any more
 #define _cffi_restore_errno                                              \
@@ -305,11 +330,11 @@ static int search_in_struct_unions(const struct _cffi_type_context_s *ctx,
 #define _cffi_from_c_char                                                \
     ((PyObject *(*)(char))_cffi_exports[15])
 #define _cffi_from_c_deref                                               \
-    ((PyObject *(*)(char *, CTypeDescrObject *))_cffi_exports[16])
+    ((PyObject *(*)(char *, struct _cffi_ctypedescr *))_cffi_exports[16])
 #define _cffi_to_c                                                       \
-    ((int(*)(char *, CTypeDescrObject *, PyObject *))_cffi_exports[17])
+    ((int(*)(char *, struct _cffi_ctypedescr *, PyObject *))_cffi_exports[17])
 #define _cffi_from_c_struct                                              \
-    ((PyObject *(*)(char *, CTypeDescrObject *))_cffi_exports[18])
+    ((PyObject *(*)(char *, struct _cffi_ctypedescr *))_cffi_exports[18])
 #define _cffi_to_c_wchar_t                                               \
     ((wchar_t(*)(PyObject *))_cffi_exports[19])
 #define _cffi_from_c_wchar_t                                             \
@@ -319,21 +344,22 @@ static int search_in_struct_unions(const struct _cffi_type_context_s *ctx,
 #define _cffi_to_c__Bool                                                 \
     ((_Bool(*)(PyObject *))_cffi_exports[22])
 #define _cffi_prepare_pointer_call_argument                              \
-    ((Py_ssize_t(*)(CTypeDescrObject *, PyObject *, char **))_cffi_exports[23])
+    ((Py_ssize_t(*)(struct _cffi_ctypedescr *,                           \
+                    PyObject *, char **))_cffi_exports[23])
 #define _cffi_convert_array_from_object                                  \
-    ((int(*)(char *, CTypeDescrObject *, PyObject *))_cffi_exports[24])
+    ((int(*)(char *, struct _cffi_ctypedescr *, PyObject *))_cffi_exports[24])
 #define _CFFI_CPIDX  25
 #define _cffi_call_python                                                \
     ((void(*)(struct _cffi_externpy_s *, char *))_cffi_exports[_CFFI_CPIDX])
 #define _CFFI_NUM_EXPORTS 26
 
-typedef struct _ctypedescr CTypeDescrObject;
+struct _cffi_ctypedescr;
 
 static void *_cffi_exports[_CFFI_NUM_EXPORTS];
 
 #define _cffi_type(index)   (                           \
     assert((((uintptr_t)_cffi_types[index]) & 1) == 0), \
-    (CTypeDescrObject *)_cffi_types[index])
+    (struct _cffi_ctypedescr *)_cffi_types[index])
 
 static PyObject *_cffi_init(const char *module_name, Py_ssize_t version,
                             const struct _cffi_type_context_s *ctx)
@@ -364,20 +390,6 @@ static PyObject *_cffi_init(const char *module_name, Py_ssize_t version,
   failure:
     Py_XDECREF(module);
     return NULL;
-}
-
-_CFFI_UNUSED_FN
-static PyObject **_cffi_unpack_args(PyObject *args_tuple, Py_ssize_t expected,
-                                    const char *fnname)
-{
-    if (PyTuple_GET_SIZE(args_tuple) != expected) {
-        PyErr_Format(PyExc_TypeError,
-                     "%.150s() takes exactly %zd arguments (%zd given)",
-                     fnname, expected, PyTuple_GET_SIZE(args_tuple));
-        return NULL;
-    }
-    return &PyTuple_GET_ITEM(args_tuple, 0);   /* pointer to the first item,
-                                                  the others follow */
 }
 
 /**********  end CPython-specific section  **********/
@@ -418,29 +430,7 @@ static void (*_cffi_call_python_org)(struct _cffi_externpy_s *, char *);
 #endif
 
 #define _CFFI_MODULE_NAME  "test_xll"
-#define _CFFI_PYTHON_STARTUP_CODE  "from test_xll import ffi\n" \
-"\n" \
-"from xlcall._xlcall import ffi as xlcall\n" \
-"xlcall = xlcall.dlopen('XLCALL32')\n" \
-"\n" \
-"# we should look for the module we want to expose, and def_extern all of them here\?\n" \
-"# then the xlAutoOpen implementation needs to loop over all the def_externs..\n" \
-"\n" \
-"@ffi.def_extern(error=0)\n" \
-"def xlAutoOpen():\n" \
-"    import os\n" \
-"    for key, value in os.environ.items():\n" \
-"        print('{key:<32s} {value}'.format(key=key, value=value))\n" \
-"    import sys\n" \
-"    print(sys.path)\n" \
-"    print(sys.prefix)\n" \
-"    print(sys.executable)\n" \
-"    print('XlCallVer: {:d}'.format(xlcall.XLCallVer()))\n" \
-"    return 1\n" \
-"\n" \
-"@ffi.def_extern(error=0)\n" \
-"def xlAutoClose():\n" \
-"    return 1\n"
+#define _CFFI_PYTHON_STARTUP_CODE  "import test_xll_embed\n"
 #ifdef PYPY_VERSION
 # define _CFFI_PYTHON_STARTUP_FUNC  _cffi_pypyinit_test_xll
 #elif PY_MAJOR_VERSION >= 3
@@ -683,7 +673,7 @@ static int _cffi_initialize_python(void)
         f = PySys_GetObject((char *)"stderr");
         if (f != NULL && f != Py_None) {
             PyFile_WriteString("\nFrom: " _CFFI_MODULE_NAME
-                               "\ncompiled with cffi version: 1.5.1"
+                               "\ncompiled with cffi version: 1.10.0"
                                "\n_cffi_backend module: ", f);
             modules = PyImport_GetModuleDict();
             mod = PyDict_GetItemString(modules, "_cffi_backend");
@@ -816,7 +806,7 @@ static struct _cffi_pypy_init_s {
     const char *code;
 } _cffi_pypy_init = {
     _CFFI_MODULE_NAME,
-    _CFFI_PYTHON_STARTUP_FUNC,
+    (void(*)(const void *[]))_CFFI_PYTHON_STARTUP_FUNC,
     _CFFI_PYTHON_STARTUP_CODE,
 };
 
@@ -1003,7 +993,7 @@ static void _console()
     // have been initialized correctly - mscrt obeys pipe/file redirections
     // even if we are not in a console process.
 
-    sprintf(szError, "%d %d %d\n",
+    sprintf(szError, "%d %d %d\\n",
         (int) GetStdHandle(STD_INPUT_HANDLE),
         (int) GetStdHandle(STD_OUTPUT_HANDLE),
         (int) GetStdHandle(STD_ERROR_HANDLE));
@@ -1014,7 +1004,7 @@ static void _console()
     if (GetConsoleWindow() == NULL)
         AttachConsole(ATTACH_PARENT_PROCESS);
 
-    sprintf(szError, "%d %d %d\n",
+    sprintf(szError, "%d %d %d\\n",
         (int) GetStdHandle(STD_INPUT_HANDLE),
         (int) GetStdHandle(STD_OUTPUT_HANDLE),
         (int) GetStdHandle(STD_ERROR_HANDLE));
@@ -1028,14 +1018,14 @@ static void _console()
     {
         if (!AllocConsole())
         {
-            sprintf(szError, "%d %d %d\n",
+            sprintf(szError, "%d %d %d\\n",
             (int) GetStdHandle(STD_INPUT_HANDLE),
             (int) GetStdHandle(STD_OUTPUT_HANDLE),
             (int) GetStdHandle(STD_ERROR_HANDLE));
         OutputDebugString(szError);
 
             dwError = GetLastError();
-            sprintf(szError, "GetLastError: %d\n", dwError);
+            sprintf(szError, "GetLastError: %d\\n", dwError);
             OutputDebugString(szError);
             return;
         }
@@ -1056,7 +1046,7 @@ static void _console()
     if (_fileno(stderr) != 2)
         _dup2(_fileno(stderr), 2);
 
-    printf("Hello From The Other Side.\n");
+    printf("Hello From The Other Side.\\n");
 }
 
 BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReason)
@@ -1081,7 +1071,7 @@ static void *_cffi_types[] = {
 };
 
 static struct _cffi_externpy_s _cffi_externpy__xlAutoClose =
-  { "xlAutoClose", (int)sizeof(int) };
+  { "test_xll.xlAutoClose", (int)sizeof(int) };
 
 CFFI_DLLEXPORT int _cffi_stdcall xlAutoClose(void)
 {
@@ -1092,7 +1082,7 @@ CFFI_DLLEXPORT int _cffi_stdcall xlAutoClose(void)
 }
 
 static struct _cffi_externpy_s _cffi_externpy__xlAutoOpen =
-  { "xlAutoOpen", (int)sizeof(int) };
+  { "test_xll.xlAutoOpen", (int)sizeof(int) };
 
 CFFI_DLLEXPORT int _cffi_stdcall xlAutoOpen(void)
 {
@@ -1122,6 +1112,10 @@ static const struct _cffi_type_context_s _cffi_type_context = {
   4,  /* num_types */
   1,  /* flags */
 };
+
+#ifdef __GNUC__
+#  pragma GCC visibility push(default)  /* for -fvisibility= */
+#endif
 
 #ifdef PYPY_VERSION
 PyMODINIT_FUNC
@@ -1153,4 +1147,8 @@ inittest_xll(void)
 {
   _cffi_init("test_xll", 0x2701, &_cffi_type_context);
 }
+#endif
+
+#ifdef __GNUC__
+#  pragma GCC visibility pop
 #endif

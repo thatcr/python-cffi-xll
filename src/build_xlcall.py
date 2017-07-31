@@ -4,15 +4,68 @@ ffi = FFI()
 
 from pathlib import Path
 
-sdk_dir = (Path(__file__).parent / '..' / '..' / 'Excel2013XLLSDK' ).resolve()
+sdk_dir = (Path(__file__).parent / '..'  / 'ExcelXllSdk' ).resolve()
+ffi.set_source('_xlcall',
+r'''
+#include <WINDOWS.H>
+#include <XLCALL.H>
 
-ffi.set_source('xlcall._xlcall', None)
+/*
+** Excel 12 entry points backwards compatible with Excel 11
+**
+** Excel12 and Excel12v ensure backwards compatibility with Excel 11
+** and earlier versions. These functions will return xlretFailed when
+** used to callback into Excel 11 and earlier versions
+*/
 
-# how do we call Excel12v when it is PASCAL?
+#define cxloper12Max 255
+#define EXCEL12ENTRYPT "MdCallBack12"
 
-# wrap this so that it works without the dlopen? i.e. can we spoof
-# the Excel12v call do that it is just missing?
+typedef int (PASCAL *EXCEL12PROC) (int xlfn, int coper, LPXLOPER12 *rgpxloper12, LPXLOPER12 xloper12Res);
 
+HMODULE hmodule;
+EXCEL12PROC pexcel12;
+
+__forceinline void FetchExcel12EntryPt(void)
+{
+	if (pexcel12 == NULL)
+	{
+		hmodule = GetModuleHandle(NULL);
+		if (hmodule != NULL)
+		{
+			pexcel12 = (EXCEL12PROC) GetProcAddress(hmodule, EXCEL12ENTRYPT);
+		}
+	}
+}
+
+
+int Excel12v(int xlfn, LPXLOPER12 operRes, int count, LPXLOPER12 opers[])
+{	
+	int mdRet;
+
+	FetchExcel12EntryPt();
+	if (pexcel12 == NULL)
+	{
+		mdRet = xlretFailed;
+	}
+	else
+	{
+		mdRet = (pexcel12)(xlfn, count, &opers[0], operRes);
+	}
+	return(mdRet);
+
+}
+
+int Test(int xlfn, LPXLOPER12 operRes, int count) {
+return xlfn;
+}
+
+''', include_dirs=[str(sdk_dir / 'INCLUDE')],
+     library_dirs=[str(sdk_dir / 'LIB')],
+     libraries = ['XLCALL32'],
+     extra_compile_args = [ '/Zi'],
+     extra_link_args = ['/DEBUG']
+)
 
 
 ffi.cdef('''
@@ -229,15 +282,10 @@ typedef struct xloper12
 	DWORD xltype;
 } XLOPER12, *LPXLOPER12;
 
-int XLCallVer(void);
-int __stdcall Excel12v(int xlfn, LPXLOPER12 operRes, int count, LPXLOPER12 opers[]);
+extern int Test(int xlfn, LPXLOPER12 operRes, int count);
+extern int Excel12v(int xlfn, LPXLOPER12 operRes, int count, LPXLOPER12 opers[]);
+
 ''')
 
-# the Excel12 API functions should be loaded from the dll,
-# we don't support va_args in cparser?
-# neither do we support pascal calling convention.
-# pascal is just stdcall with different stack parameter orer? so reverse the list?
-# can we install the abi?
-
 if __name__ == '__main__':
-    ffi.compile()
+    ffi.compile(target='_xlcall.pyd')

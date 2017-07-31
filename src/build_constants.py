@@ -5,7 +5,7 @@ from keyword import iskeyword
 
 from pkg_resources import resource_filename
 
-XLCALL_H = '../../Excel2013XLLSDK/INCLUDE/XLCALL.H'
+XLCALL_H = '../ExcelXLLSDK/INCLUDE/XLCALL.H'
 
 re_define = re.compile(r'^\s*#define (xlHpc|xlMode|[a-z]+)([A-Z][_A-Za-z0-9]+)\s*([^/]+)')
 

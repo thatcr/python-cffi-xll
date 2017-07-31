@@ -4,12 +4,139 @@ from enum import Enum
 # xl goes last... dt, xlHpc, ht
 
 
+class xltype(Enum):
+    num = 1
+    str = 2
+    bool = 4
+    ref = 8
+    err = 16
+    flow = 32
+    multi = 64
+    missing = 128
+    nil = 256
+    s_ref = 1024
+    int = 2048
+    big_data = 2050
+
+class xlbit(Enum):
+    xl_free = 4096
+    dll_free = 16384
+
+class xlerr(Enum):
+    null = 0
+    div0 = 7
+    value = 15
+    ref = 23
+    name = 29
+    num = 36
+    na = 42
+    getting_data = 43
+
+class xlflow(Enum):
+    halt = 1
+    goto = 2
+    restart = 8
+    pause = 16
+    resume = 64
+
+class xlret(Enum):
+    success = 0
+    abort = 1
+    inv_xlfn = 2
+    inv_count = 4
+    inv_xloper = 8
+    stack_ovfl = 16
+    failed = 32
+    uncalced = 64
+    not_thread_safe = 128
+    inv_asynchronous_context = 256
+    not_cluster_safe = 512
+
+class xlevent(Enum):
+    calculation_ended = 1
+    calculation_canceled = 2
+
+class xlHpc(Enum):
+    ret_success = 0
+    ret_session_id_invalid = -1
+    ret_call_failed = -2
+
+class xl(Enum):
+    command = 32768
+    special = 16384
+    intl = 8192
+    prompt = 4096
+    free = 16384
+    stack = 16385
+    coerce = 16386
+    set = 16387
+    sheet_id = 16388
+    sheet_nm = 16389
+    abort = 16390
+    get_inst = 16391
+    get_hwnd = 16392
+    get_name = 16393
+    enable_xl_msgs = 16394
+    disable_xl_msgs = 16395
+    define_binary_name = 16396
+    get_binary_name = 16397
+    get_fmla_info = 16398
+    get_mouse_info = 16399
+    async_return = 16400
+    event_register = 16401
+    running_on_cluster = 16402
+    get_inst_ptr = 16403
+    udf = 255
+
+class xlMode(Enum):
+    ready = 0
+    enter = 1
+    edit = 2
+    point = 4
+
 class dt(Enum):
     nil = 127
     sheet = 0
     proc = 1
     chart = 2
     basic = 6
+
+class ht(Enum):
+    none = 0
+    client = 1
+    v_split = 2
+    h_split = 3
+    col_width = 4
+    rw_height = 5
+    rw_col_hdr = 6
+    object = 7
+    top_left = 8
+    bot_left = 9
+    left = 10
+    top_right = 11
+    bot_right = 12
+    right = 13
+    top = 14
+    bot = 15
+    rw_gut = 16
+    col_gut = 17
+    text_box = 18
+    rw_levels = 19
+    col_levels = 20
+    dman = 21
+    dman_fill = 22
+    x_split = 23
+    vertex = 24
+    add_vtx = 25
+    del_vtx = 26
+    rw_hdr = 27
+    col_hdr = 28
+    rw_show = 29
+    col_show = 30
+    sizing = 31
+    sxpivot = 32
+    tabs = 33
+    edit = 34
 
 class xlf(Enum):
     count = 0
@@ -590,30 +717,6 @@ class xlf(Enum):
     webservice = 596
     encodeurl = 597
 
-class xltype(Enum):
-    num = 1
-    str = 2
-    bool = 4
-    ref = 8
-    err = 16
-    flow = 32
-    multi = 64
-    missing = 128
-    nil = 256
-    s_ref = 1024
-    int = 2048
-    big_data = 2050
-
-class xlerr(Enum):
-    null = 0
-    div0 = 7
-    value = 15
-    ref = 23
-    name = 29
-    num = 36
-    na = 42
-    getting_data = 43
-
 class xlc(Enum):
     beep = 32768
     open = 32769
@@ -1019,108 +1122,5 @@ class xlc(Enum):
     options_spell = 33523
     hideall_inkannots = 33576
 
-class xlflow(Enum):
-    halt = 1
-    goto = 2
-    restart = 8
-    pause = 16
-    resume = 64
 
-class xlret(Enum):
-    success = 0
-    abort = 1
-    inv_xlfn = 2
-    inv_count = 4
-    inv_xloper = 8
-    stack_ovfl = 16
-    failed = 32
-    uncalced = 64
-    not_thread_safe = 128
-    inv_asynchronous_context = 256
-    not_cluster_safe = 512
-
-class xlHpc(Enum):
-    ret_success = 0
-    ret_session_id_invalid = -1
-    ret_call_failed = -2
-
-class xlbit(Enum):
-    xl_free = 4096
-    dll_free = 16384
-
-class xlevent(Enum):
-    calculation_ended = 1
-    calculation_canceled = 2
-
-class xl(Enum):
-    command = 32768
-    special = 16384
-    intl = 8192
-    prompt = 4096
-    free = 16384
-    stack = 16385
-    coerce = 16386
-    set = 16387
-    sheet_id = 16388
-    sheet_nm = 16389
-    abort = 16390
-    get_inst = 16391
-    get_hwnd = 16392
-    get_name = 16393
-    enable_xl_msgs = 16394
-    disable_xl_msgs = 16395
-    define_binary_name = 16396
-    get_binary_name = 16397
-    get_fmla_info = 16398
-    get_mouse_info = 16399
-    async_return = 16400
-    event_register = 16401
-    running_on_cluster = 16402
-    get_inst_ptr = 16403
-    udf = 255
-
-class xlMode(Enum):
-    ready = 0
-    enter = 1
-    edit = 2
-    point = 4
-
-class ht(Enum):
-    none = 0
-    client = 1
-    v_split = 2
-    h_split = 3
-    col_width = 4
-    rw_height = 5
-    rw_col_hdr = 6
-    object = 7
-    top_left = 8
-    bot_left = 9
-    left = 10
-    top_right = 11
-    bot_right = 12
-    right = 13
-    top = 14
-    bot = 15
-    rw_gut = 16
-    col_gut = 17
-    text_box = 18
-    rw_levels = 19
-    col_levels = 20
-    dman = 21
-    dman_fill = 22
-    x_split = 23
-    vertex = 24
-    add_vtx = 25
-    del_vtx = 26
-    rw_hdr = 27
-    col_hdr = 28
-    rw_show = 29
-    col_show = 30
-    sizing = 31
-    sxpivot = 32
-    tabs = 33
-    edit = 34
-
-
-__all__ = [ 'dt''xlf''xltype''xlerr''xlc''xlflow''xlret''xlHpc''xlbit''xlevent''xl''xlMode''ht' ]
+__all__ = [ 'xltype''xlbit''xlerr''xlflow''xlret''xlevent''xlHpc''xl''xlMode''dt''ht''xlf''xlc' ]
