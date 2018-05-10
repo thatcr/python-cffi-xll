@@ -1,49 +1,10 @@
-
-from cffi import FFI
-from pathlib import Path
-
-sdk_dir = (Path(__file__).parent / '..'  / 'ExcelXllSdk' ).resolve()
-
-
-ffi = FFI()
-
-# note need cffi 1.5.1 in order to support __stdcall
-ffi.embedding_api(r'''
-    extern int __stdcall xlAutoOpen(void);
-    extern int __stdcall xlAutoClose(void);
-'''
-)
-
-# should we define our entry points here explicitly
-ffi.embedding_init_code('''import test_xll_embed''')
-
-# need to set PYTHONHOME at the moment, or this won't embed properly.
-# also need to setu PYTHONPATH if running from source, but that's typical.
-# cal python_setHome thing to sort it out -> need to infer from the python.dll location?
-
-# office 2016 seems to break AttachConsole/AllocConsole. Nasty
-# works in office 2013.
-# but how do we pick up the right virtualenv?
-# if we are in develop mode it's a problem: need to find the base of the tree for PYTHONPATH?
-# need to find the location of python.dll, and insall the right virtualenv PATH around it
-# not sure that the embedded install does that? or are we just picking upt he wrong one.
-
-# VIRTUAL_ENV can specify where, if not we use the
-
-ffi.set_source('test_xll',
-r'''
-#include <WINDOWS.H>
-#include <XLCALL.H>
-
 #include <stdio.h>
-
 #include <fcntl.h>
-
 #include <io.h>
 
+#include <WINDOWS.h>
 
-#pragma comment(linker, "/export:xlAutoOpen=_xlAutoOpen@0")
-#pragma comment(linker, "/export:xlAutoClose=_xlAutoClose@0")
+#include <Python.h>
 
 // if a buffer wasn't initialized because the inherited handle
 // was a console, yet the application was not then reopen it
@@ -56,36 +17,29 @@ static void _reopen_console(const char* name, FILE* fp, const char* mode)
         setvbuf(fp, NULL, _IONBF, 0);
     }
 }
-
+// TODO move this to a seprate cffi module
 static void _console()
 {
     DWORD dwError;
     char szError[4096];
-
     // standard handles that are not redirected to console will already
     // have been initialized correctly - mscrt obeys pipe/file redirections
     // even if we are not in a console process.
-
     sprintf(szError, "%d %d %d\\n",
         (int) GetStdHandle(STD_INPUT_HANDLE),
         (int) GetStdHandle(STD_OUTPUT_HANDLE),
         (int) GetStdHandle(STD_ERROR_HANDLE));
     OutputDebugString(szError);
-
-
     // however console handles are not inherited, so first we attach a console
     if (GetConsoleWindow() == NULL)
         AttachConsole(ATTACH_PARENT_PROCESS);
-
     sprintf(szError, "%d %d %d\\n",
         (int) GetStdHandle(STD_INPUT_HANDLE),
         (int) GetStdHandle(STD_OUTPUT_HANDLE),
         (int) GetStdHandle(STD_ERROR_HANDLE));
     OutputDebugString(szError);
-
     // for some reason this doesn't now work. is it windows 10 or excel 2016
     // or 32 bit on 64. something changed post windows 7 that stops AllocConsole?
-
     // if we have no console, and no redirection, then allocate a new console
     if (GetConsoleWindow() == NULL)
     {
@@ -95,21 +49,18 @@ static void _console()
             (int) GetStdHandle(STD_INPUT_HANDLE),
             (int) GetStdHandle(STD_OUTPUT_HANDLE),
             (int) GetStdHandle(STD_ERROR_HANDLE));
-        OutputDebugString(szError);
-
+            OutputDebugString(szError);
             dwError = GetLastError();
             sprintf(szError, "GetLastError: %d\\n", dwError);
             OutputDebugString(szError);
             return;
         }
     }
-
     // -2 means we had no console window at startup, so fixup the streams
     // that aren't propertly initialized
     _reopen_console("CONIN$", stdin, "rb");
     _reopen_console("CONOUT$", stdout, "ab");
     _reopen_console("CONOUT$", stderr, "ab");
-
     // some packacges (pytest) assume that file descriptors 0, 1, 2
     // are always stdin/out/err, so dup them back so it works
     if (_fileno(stdin) != 0)
@@ -118,28 +69,36 @@ static void _console()
         _dup2(_fileno(stdout), 1);
     if (_fileno(stderr) != 2)
         _dup2(_fileno(stderr), 2);
+}
 
-    printf("Hello From The Other Side.\\n");
+#define PY_DLL "python" #PY_MAJOR_VERSION #PY_MINOR_VERSION ".dll"
+
+// EXTERN_C IMAGE_DOS_HEADER __ImageBase;
+void _set_python_home()
+{
+    CHAR   DllName[MAX_PATH];
+    sprintf(DllName, "python%d%d.dll", PY_MAJOR_VERSION, PY_MINOR_VERSION);
+
+    HMODULE hModule = GetModuleHandle(DllName);
+
+    static WCHAR   DllPath[MAX_PATH] = {0};
+    GetModuleFileNameW(hModule, DllPath, _countof(DllPath));
+
+    *wcsrchr(DllPath, L'\\') = 0;
+
+    printf("Py_SetPythonHome(%S)\n", DllPath);
+    Py_SetPythonHome(DllPath);
 }
 
 BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpvReason)
 {
+    if (Py_IsInitialized())
+        return TRUE;
+
     DisableThreadLibraryCalls(hInstDLL);
     if (fdwReason == DLL_PROCESS_ATTACH) {
         _console();
+        _set_python_home();
     }
     return TRUE;
 }
-
-
-''', include_dirs=[str(sdk_dir / 'INCLUDE')],
-     library_dirs=[str(sdk_dir / 'LIB')],
-     libraries = ['XLCALL32'],
-     extra_compile_args = [ '/Zi'],
-     extra_link_args = ['/DEBUG']
-)
-
-
-
-if __name__ == '__main__':
-    ffi.compile(target='test_xll.xll')

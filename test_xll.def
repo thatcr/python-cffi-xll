@@ -1,0 +1,6 @@
+
+EXPORTS
+	xlAutoOpen
+	xlAutoClose
+	TheNumberOneInPy
+	os_environ
