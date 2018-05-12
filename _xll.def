@@ -1,0 +1,10 @@
+EXPORTS
+	xlAutoOpen
+	xlAutoClose
+	xlAutoAdd
+	xlAutoRemove
+	xlAutoFree12
+	os_environ
+	test_c_string
+	TheNumberOneInPy
+	TheNumberOneInC

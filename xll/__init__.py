@@ -1,5 +1,7 @@
 from xlcall import ffi, lib
 
+#lib = ffi.dlopen('msvcrt')
+
 def Excel(xlf, *args):
     res = ffi.new('LPXLOPER12')
 
@@ -14,9 +16,6 @@ def Excel(xlf, *args):
     if ret:
         raise RuntimeError(str(ret))
     return from_xloper(res)
-
-
-lib = ffi.dlopen('msvcrt')
 
 def from_xloper(xloper):
     xltype = 0x0FFF & xloper.xltype
@@ -80,7 +79,7 @@ def to_xloper(value):
 def xlAutoFree12(xloper):
     # cleanup memory from strings
     if xloper.xltype == lib.xltypeStr | lib.xlbitDLLFree:
-        lib.free(ffi.addressof(xloper.val.str))
+        lib.free(xloper.val.str)
         xloper.xltype = 0
 
 
