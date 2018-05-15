@@ -1,6 +1,38 @@
 # cffi-xll
 Python XLL SDK via CFFI
 
+What is the right marshal format? 
+Using anything python native is insecure, so bad, long term.
+Secure protocols normally lack 2d support or some types. (JSON)
+MSGPACK might better, but no 2-D. We want to preserve xlopers as much as possible.
+
+Unmarshalling direct to python gtypes is good, esp if type transfer is richer (i.e. we encode
+a dict on the client side).
+Or we just add a type _hint_ from the user
+
+= BUILD_THING(DICT(A2:A4))
+
+DICT will verify the range, but just return the reference? locallay, with some
+annotation so that BUILD_THING picks it up...
+HOw can it manipualte th eXLOPER so it's a 'dict' -> scrable xltypes? 
+Or it has to be explict, it just checks.
+
+Attractive to use MSGPACK, as it will avoid writing unmarshalling code. 
+Can use EXT sparingly to embed array sizs, types etc.
+
+Marshal woudld be simple.  
+
+Yamnl and i's types tuff may be the answer. 
+xlyaml
+
+
+
+ 
+
+
+ 
+
+
 
 Problem:
 

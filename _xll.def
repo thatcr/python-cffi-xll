@@ -7,4 +7,3 @@ EXPORTS
 	os_environ
 	test_c_string
 	TheNumberOneInPy
-	TheNumberOneInC

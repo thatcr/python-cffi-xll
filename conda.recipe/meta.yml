@@ -1,15 +1,15 @@
 package:
-  name: cffi-xll
-  version: 0
-
+  name: python-cffi-xll
+  version: "{{ GIT_DESCRIBE_TAG }}"
 
 requirements:
+  number: "{{GIT_DESCRIBE_NUMBER}}"
   build:
-    - jinja2
+    - python
     - cffi
-    - inflection
 
   run:
+    - python
     - cffi
 
 
