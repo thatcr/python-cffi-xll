@@ -13,75 +13,46 @@ ffi.cdef(f"""
    extern unsigned int ncallbacks;   
 """)
 
-"""
-with naked we see exactly the stack we want, but must do our own returning..
-
-[0] = 0x1A108FE
-TOS[1] = 0x1
-TOS[2] = 0x2
-TOS[3] = 0x3
-TOS[4] = 0x0
-TOS[5] = 0x4A
-TOS[6] = 0x0
-TOS[7] = 0x3FDADC
-"""
-"""
-assembly is here
-; Function compile flags: /Ogtpy
-_TEXT	SEGMENT
-_tos$ = -4						; size = 4
-_a$ = 8							; size = 4
-_b$ = 12						; size = 4
-_c$ = 16						; size = 4
-_InspectStack@12 PROC
-; File e:\src\python-cffi-excel\_xll.c
-; Line 1151
-	mov	DWORD PTR _tos$[ebp], esp
-; Line 1162
-	push	DWORD PTR _tos$[ebp]
-	push	OFFSET $SG4294967271
-	call	_printf
-	add	esp, 8
-; Line 1163
-	xor	esi, esi
-$LL4@InspectSta:
-; Line 1165
-	mov	eax, DWORD PTR _tos$[ebp]
-	push	DWORD PTR [eax+esi*4]
-	push	esi
-	push	OFFSET $SG4294967270
-	call	_printf
-	inc	esi
-	add	esp, 12					; 0000000cH
-	cmp	esi, 8
-	jb	SHORT $LL4@InspectSta
-_InspectStack@12 ENDP"""
-
 # _test_xll should be generated here?
 
 ffi.set_source('_xll',
    r"""   
    #include <XLCALLDEF.h>
-     
-   __declspec(noinline) void print_arg_data(const unsigned int* args)
-   {
+       
+   int _dump_args(const char* type_text, const void* args)
+   {      
+      const unsigned char* arg;
+      const char* t;
       int i;
-      for (i = 8; i > -8; --i) { 
-         printf("args[%03d] = 0x%08X\n", i, args[i]);
-      }            
-   }
+            
+      for (arg=(const unsigned char*) args, i = 0, t = type_text + 1; (*t) != 0; ++t, ++i)
+      {
+         switch(*t) {
+            case 'J':               
+               printf("arg[% 2d] = %d : int\n", i, *((int*) arg));
+               arg += sizeof(int);
+               break;                              
+            default:
+               printf("unknown type code '%c'\n", *t); 
+               return 0;
+         };         
+      }    
+      
+      return i;       
+   }   
    
-   
-                    
-   __declspec(dllexport) int __stdcall Test(const int a, const int b, const int c) {
-  
-         
+   static const char* type_text = "JJJJ";
+   static const size_t type_size = 12;
+   static const void* callback = _dump_args;
+                               
+   __declspec(dllexport) void __stdcall Test(void) {          
       __asm {
          mov eax, ebp
          add eax, 8
-         
+                           
          push eax
-         call print_arg_data      
+         push type_text
+         call callback      
          mov eax, 123      
          
          // restore stack base pointer 
@@ -92,7 +63,7 @@ ffi.set_source('_xll',
          pop ecx
          
          // remove all the arguments - needs to be variable
-         add esp, 12
+         add esp, type_size
          
          // jmp to the  location, no need to RET
          jmp ecx         
